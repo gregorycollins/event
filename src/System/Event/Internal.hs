@@ -8,7 +8,8 @@ data Event = Read   -- ^ The file descriptor is ready to be read
            | Write  -- ^ The file descriptor is ready to be written to
 
 -- | A type alias for timeouts
-type Timeout = CInt
+data Timeout = Timeout CInt
+             | Forever
 
 -- | Event notification backend.
 class Backend a where

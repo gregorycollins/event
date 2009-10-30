@@ -13,7 +13,7 @@ import Prelude hiding (filter)
 import System.Posix.Types (Fd(..))
 
 import qualified System.Event.Internal as E
-import           System.Event.Internal (Timeout)
+import           System.Event.Internal (Timeout(..))
 import qualified System.Event.Array as A
 
 #include <sys/types.h>
@@ -127,10 +127,15 @@ kevent k chs chlen evs evlen ts
       c_kevent k chs (fromIntegral chlen) evs (fromIntegral evlen) ts
 
 withTimeSpec :: TimeSpec -> (Ptr TimeSpec -> IO a) -> IO a
-withTimeSpec ts f = alloca $ \ptr -> poke ptr ts >> f ptr
+withTimeSpec ts f =
+    if tv_sec ts < 0 then
+        f nullPtr
+      else
+        alloca $ \ptr -> poke ptr ts >> f ptr
 
 msToTimeSpec :: Timeout -> TimeSpec
-msToTimeSpec ms = TimeSpec (toEnum sec) (toEnum nanosec)
+msToTimeSpec Forever = TimeSpec (-1) (-1)
+msToTimeSpec (Timeout ms) = TimeSpec (toEnum sec) (toEnum nanosec)
   where
     sec :: Int
     sec     = fromEnum $ ms `div` 1000

@@ -3,7 +3,7 @@
 module System.Event
     ( -- * Types
       EventLoop,
-      Timeout,
+      Timeout(..),
 
       -- * Creation
       new,
@@ -21,7 +21,7 @@ import Data.IntMap as IM
 import Data.IORef
 import System.Posix.Types (Fd(..))
 
-import System.Event.Internal (Backend, Event(..), Timeout)
+import System.Event.Internal (Backend, Event(..), Timeout(..))
 
 import qualified System.Event.Internal as I
 
@@ -67,7 +67,7 @@ loop :: EventLoop -> IO ()
 loop el = loop'
   where
     loop' = do
-        let timeout = 2000
+        let timeout = Timeout 2000
         runOnce el timeout
         loop'
 

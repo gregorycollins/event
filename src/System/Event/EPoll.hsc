@@ -16,7 +16,7 @@ import System.Posix.Types (Fd(..))
 
 import qualified System.Event.Array    as A
 import qualified System.Event.Internal as E
-import           System.Event.Internal (Timeout)
+import           System.Event.Internal (Timeout(..))
 
 -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- --
 
@@ -153,7 +153,7 @@ poll ep timeout timeoutCallback f = do
     let events = epollEvents ep
 
     n <- A.unsafeLoad events $ \es cap ->
-         epollWait epfd es cap $ fromEnum timeout
+         epollWait epfd es cap $ fromTimeout timeout
 
     if (Errno $ toEnum n) == eINTR then
         timeoutCallback
@@ -168,3 +168,8 @@ poll ep timeout timeoutCallback f = do
 fromEvent :: E.Event -> EventType
 fromEvent E.Read  = eventTypeReadyForRead
 fromEvent E.Write = eventTypeReadyForWrite
+
+
+fromTimeout :: Timeout -> Int
+fromTimeout Forever      = -1
+fromTimeout (Timeout ms) = fromIntegral ms
