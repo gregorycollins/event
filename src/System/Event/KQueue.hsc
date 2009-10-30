@@ -10,9 +10,10 @@ import Foreign.Ptr
 import Foreign.Storable
 import Foreign.Marshal.Alloc
 import Prelude hiding (filter)
+import System.Posix.Types (Fd(..))
 
 import qualified System.Event.Internal as E
-import           System.Event.Internal (Fd, Timeout)
+import           System.Event.Internal (Timeout)
 import qualified System.Event.Array as A
 
 #include <sys/types.h>
@@ -158,7 +159,7 @@ new = do
     events' <- A.new 64
     return $ EventQueue kq' changes' events'
 
-set :: EventQueue -> CInt -> Filter -> Flag -> IO ()
+set :: EventQueue -> Fd -> Filter -> Flag -> IO ()
 set q fd fltr flg =
     A.snoc (changes q) (Event (fromIntegral fd) fltr flg 0 0 nullPtr)
 

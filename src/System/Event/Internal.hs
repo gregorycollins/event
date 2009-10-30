@@ -1,13 +1,11 @@
 module System.Event.Internal where
 
 import Foreign.C.Types (CInt)
+import System.Posix.Types (Fd(..))
 
 -- | An I/O event.
 data Event = Read   -- ^ The file descriptor is ready to be read
            | Write  -- ^ The file descriptor is ready to be written to
-
--- | A type alias for file descriptors
-type Fd = CInt
 
 -- | A type alias for timeouts
 type Timeout = CInt
@@ -28,6 +26,6 @@ class Backend a where
     -- | Register interest in the given events on the given file
     -- descriptor.
     set :: a
-        -> CInt     -- ^ file descriptor
+        -> Fd       -- ^ file descriptor
         -> [Event]  -- ^ events to watch for
         -> IO ()

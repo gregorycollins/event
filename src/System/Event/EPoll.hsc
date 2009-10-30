@@ -4,7 +4,7 @@ module System.Event.EPoll where
 
 #include <sys/epoll.h>
 
-import Control.Monad (liftM2, when)
+import Control.Monad (liftM, liftM2, when)
 import Data.Bits ((.|.))
 import Foreign.C.Error (throwErrnoIfMinus1, eINTR, Errno(..))
 import Foreign.C.Types (CInt, CUInt)
@@ -12,10 +12,11 @@ import Foreign.Marshal.Error (void)
 import Foreign.Marshal.Utils (with)
 import Foreign.Ptr (Ptr)
 import Foreign.Storable (Storable(..))
+import System.Posix.Types (Fd(..))
 
 import qualified System.Event.Array    as A
 import qualified System.Event.Internal as E
-import           System.Event.Internal (Fd, Timeout)
+import           System.Event.Internal (Timeout)
 
 -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- --
 
@@ -90,7 +91,7 @@ foreign import ccall unsafe "sys/epoll.h epoll_wait"
 
 epollCreate :: IO EPollFd
 epollCreate =
-    EPollFd `fmap` throwErrnoIfMinus1 "epollCreate" (c_epoll_create size)
+    EPollFd `fmap` throwErrnoIfMinus1 "epollCreate" (liftM Fd $ c_epoll_create size)
   where
     -- From manpage EPOLL_CREATE(2): "Since Linux 2.6.8, the size argument is
     -- unused. (The kernel dynamically sizes the required data structures
@@ -102,7 +103,11 @@ epollControl epfd op fd event =
     void $
       throwErrnoIfMinus1
         "epollControl"
-        (c_epoll_ctl (unEPollFd epfd) (unControlOp op) fd event)
+        (c_epoll_ctl
+           (fromIntegral $ unEPollFd epfd)
+           (unControlOp op)
+           (fromIntegral fd)
+           event)
 
 epollWait :: EPollFd -> Ptr Event -> Int -> Int -> IO Int
 epollWait epfd events maxNumEvents maxNumMilliseconds =
@@ -110,7 +115,7 @@ epollWait epfd events maxNumEvents maxNumMilliseconds =
       throwErrnoIfMinus1
         "epollWait"
         (c_epoll_wait
-           (unEPollFd epfd)
+           (fromIntegral $ unEPollFd epfd)
            events
            (fromIntegral maxNumEvents)
            (fromIntegral maxNumMilliseconds)
@@ -131,9 +136,9 @@ instance E.Backend EPoll where
 new :: IO EPoll
 new = liftM2 EPoll epollCreate (A.new 64)
 
-set :: EPoll -> CInt -> [E.Event] -> IO ()
+set :: EPoll -> Fd -> [E.Event] -> IO ()
 set ep fd events =
-    with e $ epollControl (epollEpfd ep) controlOpAdd fd
+    with e $ epollControl (epollEpfd ep) controlOpAdd (fromIntegral fd)
   where
     e   = Event ets fd
     ets = combineEventTypes (map fromEvent events)
@@ -141,7 +146,7 @@ set ep fd events =
 poll :: EPoll                        -- ^ state
      -> Timeout                      -- ^ timeout in milliseconds
      -> IO ()                        -- ^ timeout callback
-     -> (CInt -> [E.Event] -> IO ()) -- ^ I/O callback
+     -> (Fd -> [E.Event] -> IO ()) -- ^ I/O callback
      -> IO ()
 poll ep timeout timeoutCallback f = do
     let epfd   = epollEpfd   ep

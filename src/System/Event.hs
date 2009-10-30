@@ -3,7 +3,6 @@
 module System.Event
     ( -- * Types
       EventLoop,
-      Fd,
       Timeout,
 
       -- * Creation
@@ -20,9 +19,9 @@ module System.Event
 
 import Data.IntMap as IM
 import Data.IORef
-import Foreign.C.Types (CInt)
+import System.Posix.Types (Fd(..))
 
-import System.Event.Internal (Backend, Event(..), Fd, Timeout)
+import System.Event.Internal (Backend, Event(..), Timeout)
 
 import qualified System.Event.Internal as I
 
@@ -87,16 +86,16 @@ type Callback = [Event] -> IO ()
 
 -- | @set el cb fd evs@ registers interest in the events @evs@ on the
 -- file descriptor @fd@.  @cb@ is called for each event that occurs.
-set :: EventLoop -> Callback -> CInt -> [Event] -> IO ()
+set :: EventLoop -> Callback -> Fd -> [Event] -> IO ()
 set (EventLoop be cbs) cb fd evs = do
     modifyIORef cbs (IM.insert (fromIntegral fd) cb)
-    I.set be fd evs
+    I.set be (fromIntegral fd) evs
 
 ------------------------------------------------------------------------
 -- Utilities
 
 -- | Call the callback corresponding to the given file descriptor.
-onFdEvent :: Callbacks -> CInt -> [Event] -> IO ()
+onFdEvent :: Callbacks -> Fd -> [Event] -> IO ()
 onFdEvent cbs fd evs =
     case IM.lookup (fromIntegral fd) cbs of
         Just cb -> cb evs
