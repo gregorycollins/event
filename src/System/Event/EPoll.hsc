@@ -6,7 +6,7 @@ module System.Event.EPoll where
 
 import Control.Monad (liftM2, when)
 import Data.Bits ((.|.))
-import Foreign.C.Error (throwErrnoIfMinus1)
+import Foreign.C.Error (throwErrnoIfMinus1, eINTR, Errno(..))
 import Foreign.C.Types (CInt, CUInt)
 import Foreign.Marshal.Error (void)
 import Foreign.Marshal.Utils (with)
@@ -15,18 +15,19 @@ import Foreign.Storable (Storable(..))
 
 import qualified System.Event.Array    as A
 import qualified System.Event.Internal as E
+import           System.Event.Internal (Fd, Timeout)
 
 -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- --
 
 newtype EPollFd = EPollFd
-    { unEPollFd :: CInt
+    { unEPollFd :: Fd
     }
 
 -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- --
 
 data Event = Event
     { eventTypes :: EventType
-    , eventFd    :: CInt
+    , eventFd    :: Fd
     }
 
 instance Storable Event where
@@ -92,8 +93,8 @@ epollCreate =
     EPollFd `fmap` throwErrnoIfMinus1 "epollCreate" (c_epoll_create size)
   where
     -- From manpage EPOLL_CREATE(2): "Since Linux 2.6.8, the size argument is
-    -- unused. (The kernel dynamically sizes the required data structures without
-    -- needing this initial hint.)" We pass 256 because libev does.
+    -- unused. (The kernel dynamically sizes the required data structures
+    -- without needing this initial hint.)" We pass 256 because libev does.
     size = 256 :: CInt
 
 epollControl :: EPollFd -> ControlOp -> CInt -> Ptr Event -> IO ()
@@ -137,20 +138,25 @@ set ep fd events =
     e   = Event ets fd
     ets = combineEventTypes (map fromEvent events)
 
-poll :: EPoll -> (CInt -> [E.Event] -> IO ()) -> IO ()
-poll ep f = do
+poll :: EPoll                        -- ^ state
+     -> Timeout                      -- ^ timeout in milliseconds
+     -> IO ()                        -- ^ timeout callback
+     -> (CInt -> [E.Event] -> IO ()) -- ^ I/O callback
+     -> IO ()
+poll ep timeout timeoutCallback f = do
     let epfd   = epollEpfd   ep
     let events = epollEvents ep
 
     n <- A.unsafeLoad events $ \es cap ->
-         epollWait epfd es cap maxNumMilliseconds
+         epollWait epfd es cap $ fromEnum timeout
 
-    cap <- A.capacity events
-    when (n == cap) $ A.ensureCapacity events (2 * cap)
+    if (Errno $ toEnum n) == eINTR then
+        timeoutCallback
+      else do
+        cap <- A.capacity events
+        when (n == cap) $ A.ensureCapacity events (2 * cap)
 
-    A.mapM_ events $ \e -> f (eventFd e) []
-  where
-    maxNumMilliseconds = 1000
+        A.mapM_ events $ \e -> f (eventFd e) []
 
 -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- --
 

@@ -3,6 +3,8 @@
 module System.Event
     ( -- * Types
       EventLoop,
+      Fd,
+      Timeout,
 
       -- * Creation
       new,
@@ -20,7 +22,7 @@ import Data.IntMap as IM
 import Data.IORef
 import Foreign.C.Types (CInt)
 
-import System.Event.Internal (Backend, Event(..))
+import System.Event.Internal (Backend, Event(..), Fd, Timeout)
 
 import qualified System.Event.Internal as I
 
@@ -40,8 +42,9 @@ type Callbacks = IntMap ([Event] -> IO ())
 
 -- | The event loop state.
 data EventLoop = forall a. Backend a => EventLoop
-    !a  -- Backend
-    (IORef Callbacks)
+    { _elBackend     :: !a                 -- ^ Backend
+    , _elIOCallbacks :: !(IORef Callbacks) -- ^ I/O callbacks
+    }
 
 ------------------------------------------------------------------------
 -- Creation
@@ -63,12 +66,18 @@ new = do
 -- | Start handling events.  This function never returns.
 loop :: EventLoop -> IO ()
 loop el = loop'
-    where loop' = runOnce el >> loop'
+  where
+    loop' = do
+        let timeout = 2000
+        runOnce el timeout
+        loop'
 
-runOnce :: EventLoop -> IO ()
-runOnce (EventLoop be cbs) = do
+runOnce :: EventLoop -> Timeout -> IO ()
+runOnce el@(EventLoop be cbs) tout = do
+    let timeoutCallback = onTimeoutEvent el
     cbs' <- readIORef cbs
-    I.poll be (onFdEvent cbs')
+    let ioCallback = (onFdEvent cbs')
+    I.poll be tout timeoutCallback ioCallback
 
 ------------------------------------------------------------------------
 -- Registering interest in events
@@ -92,3 +101,7 @@ onFdEvent cbs fd evs =
     case IM.lookup (fromIntegral fd) cbs of
         Just cb -> cb evs
         Nothing -> return ()  -- TODO: error?
+
+
+onTimeoutEvent :: EventLoop -> IO ()
+onTimeoutEvent _ = putStrLn "FIXME: timeout"

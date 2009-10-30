@@ -12,7 +12,7 @@ import Foreign.Marshal.Alloc
 import Prelude hiding (filter)
 
 import qualified System.Event.Internal as E
-
+import           System.Event.Internal (Fd, Timeout)
 import qualified System.Event.Array as A
 
 #include <sys/types.h>
@@ -128,6 +128,15 @@ kevent k chs chlen evs evlen ts
 withTimeSpec :: TimeSpec -> (Ptr TimeSpec -> IO a) -> IO a
 withTimeSpec ts f = alloca $ \ptr -> poke ptr ts >> f ptr
 
+msToTimeSpec :: Timeout -> TimeSpec
+msToTimeSpec ms = TimeSpec (toEnum sec) (toEnum nanosec)
+  where
+    sec :: Int
+    sec     = fromEnum $ ms `div` 1000
+
+    nanosec :: Int
+    nanosec = (fromEnum ms - 1000*sec) * 1000000
+
 ------------------------------------------------------------------------
 -- Exported interface
 
@@ -153,26 +162,32 @@ set :: EventQueue -> CInt -> Filter -> Flag -> IO ()
 set q fd fltr flg =
     A.snoc (changes q) (Event (fromIntegral fd) fltr flg 0 0 nullPtr)
 
-poll :: EventQueue -> (CInt -> [E.Event] -> IO ()) -> IO ()
-poll q f = do
+poll :: EventQueue
+     -> Timeout
+     -> IO ()
+     -> (Fd -> [E.Event] -> IO ())
+     -> IO ()
+poll q tout timeoutCallback f = do
     changesLen <- A.length (changes q)
     len <- A.length (events q)
-    when (changesLen > len) $ do
-        A.ensureCapacity (events q) (2 * changesLen)
+    when (changesLen > len) $ A.ensureCapacity (events q) (2 * changesLen)
     res <- A.useAsPtr (changes q) $ \changesPtr chLen ->
                A.useAsPtr (events q) $ \eventsPtr evLen ->
-               withTimeSpec (TimeSpec 1 0) $ \tsPtr ->
+               withTimeSpec (msToTimeSpec tout) $ \tsPtr ->
                kevent (kq q) changesPtr chLen eventsPtr evLen tsPtr
 
-    when (res > 0) $ putStrLn "events!"
+    if res <= 0 then
+        timeoutCallback
+      else do
+        putStrLn "events!"
 
-    eventsLen <- A.length (events q)
-    when (res == eventsLen) $ do
-        A.ensureCapacity (events q) (2 * eventsLen)
+        eventsLen <- A.length (events q)
+        when (res == eventsLen) $ do
+            A.ensureCapacity (events q) (2 * eventsLen)
 
-    A.mapM_ (events q) $ \e -> do
-        let fd = fromIntegral (ident e)
-        f fd []
+        A.mapM_ (events q) $ \e -> do
+            let fd = fromIntegral (ident e)
+            f fd []
 
 fromEvent :: E.Event -> Filter
 fromEvent E.Read  = filterRead
