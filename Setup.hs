@@ -8,5 +8,5 @@ main =
     defaultMainWithHooks $ simpleUserHooks { runTests = runTests' }
   where
     runTests' _ _ _ _ = do
-        system "./dist/build/test/test"
+        system "./dist/build/test/test -j4"
         return ()

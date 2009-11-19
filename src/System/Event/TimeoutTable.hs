@@ -13,6 +13,7 @@ module System.Event.TimeoutTable
   , null
   , findOldest
   , find
+  , fromList
   , member
   , insert
   , delete
@@ -35,6 +36,13 @@ empty = TimeoutTable Map.empty Map.empty
 {-| Returns True if the table is empty. -}
 null :: TimeoutTable k a -> Bool
 null (TimeoutTable k _) = Map.null k
+
+
+{-| Create a TimeoutTable from a list -}
+fromList :: (Ord k) => [(TimeRep, k, a)] -> TimeoutTable k a
+fromList = List.foldl' insOne empty
+  where
+    insOne !tab (!t,!a,!b) = insert t a b tab
 
 
 {-| Find the entry in the table with the first (oldest) expiry time. -}

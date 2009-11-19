@@ -5,7 +5,6 @@ module System.Event.TimeoutTable.Internal where
 import qualified Data.List as List
 import qualified Data.Map as Map
 import           Data.Map (Map)
-import           Data.Maybe (fromJust)
 import           Data.Time.Clock (UTCTime(..))
 import           Data.Time.Format (formatTime)
 import           Prelude hiding (null)
