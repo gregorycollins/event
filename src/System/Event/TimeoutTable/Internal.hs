@@ -5,15 +5,8 @@ module System.Event.TimeoutTable.Internal where
 import qualified Data.List as List
 import qualified Data.Map as Map
 import           Data.Map (Map)
-import           Data.Time.Clock (UTCTime(..))
-import           Data.Time.Format (formatTime)
+import           Data.Maybe (fromJust)
 import           Prelude hiding (null)
-import           System.Locale (defaultTimeLocale)
-
-
-------------------------------------------------------------------------------
--- Maybe too expensive, replace with some cheaper hi-res timer?
-type TimeRep = UTCTime
 
 
 ------------------------------------------------------------------------------
@@ -30,20 +23,18 @@ can:
 
 -}
 
-data TimeoutTable k a = TimeoutTable
-    { _keySet  :: !(Map k (TimeRep, a))
-    , _timeSet :: !(Map TimeRep [k]) }
+data TimeoutTable tm k a = TimeoutTable
+    { _keySet  :: !(Map k (tm, a))
+    , _timeSet :: !(Map tm [k]) }
 
 
 ------------------------------------------------------------------------------
-instance (Show k, Show a) => Show (TimeoutTable k a) where
+instance (Show tm, Show k, Show a) => Show (TimeoutTable tm k a) where
     show (TimeoutTable ks _) = "<TimeoutTable (" ++ show (fmap f ks) ++ ")>"
 
       where
-        f :: (Show a) => (TimeRep, a) -> String
-        f (tr,a) = "(" ++ showUTC tr ++ "," ++ show a ++ ")"
-
-        showUTC = formatTime defaultTimeLocale "%Y-%m-%d %H:%M:%S"
+        f :: (Show tm, Show a) => (tm, a) -> String
+        f x = show x
 
 
 
@@ -51,16 +42,16 @@ instance (Show k, Show a) => Show (TimeoutTable k a) where
 -- internal functions follow
 ------------------------------------------------------------------------------
 
-removeFromTimeSet :: (Ord k) =>
-                     TimeRep
+removeFromTimeSet :: (Ord k, Ord tm) =>
+                     tm
                   -> k
-                  -> Map TimeRep [k]
-                  -> Map TimeRep [k]
-removeFromTimeSet tm k ts = maybe ts killIt mbOld
+                  -> Map tm [k]
+                  -> Map tm [k]
+removeFromTimeSet tm k ts = killIt old
   where
-    mbOld     = Map.lookup tm ts
+    old       = fromJust $ Map.lookup tm ts
     killIt ks = if List.null ks'
                   then Map.delete tm ts
                   else Map.insert tm ks' ts
       where
-        ks' = List.delete k ks
+        !ks' = List.delete k ks

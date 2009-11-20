@@ -8,7 +8,6 @@ FIXME: add description
 
 module System.Event.TimeoutTable
   ( TimeoutTable
-  , TimeRep
   , empty
   , null
   , findOldest
@@ -29,28 +28,26 @@ import           System.Event.TimeoutTable.Internal
 
 ------------------------------------------------------------------------------
 {-| An empty TimeoutTable. -}
-empty :: TimeoutTable k a
+empty :: TimeoutTable tm k a
 empty = TimeoutTable Map.empty Map.empty
 
 
 {-| Returns True if the table is empty. -}
-null :: TimeoutTable k a -> Bool
+null :: TimeoutTable tm k a -> Bool
 null (TimeoutTable k _) = Map.null k
 
 
 {-| Create a TimeoutTable from a list -}
-fromList :: (Ord k) => [(TimeRep, k, a)] -> TimeoutTable k a
+fromList :: (Ord tm, Ord k) => [(tm, k, a)] -> TimeoutTable tm k a
 fromList = List.foldl' insOne empty
   where
     insOne !tab (!t,!a,!b) = insert t a b tab
 
 
 {-| Find the entry in the table with the first (oldest) expiry time. -}
-findOldest :: (Ord k) => TimeoutTable k a -> Maybe (TimeRep, k, a)
+findOldest :: (Ord tm, Ord k) => TimeoutTable tm k a -> Maybe (tm, k, a)
 findOldest (TimeoutTable keys times) | Map.null keys = Nothing
-                                     | otherwise = if List.null l
-                                                     then Nothing
-                                                     else Just (t, hd, snd el)
+                                     | otherwise = Just (t, hd, snd el)
   where
     (t,l) = Map.findMin times
     hd    = head l
@@ -58,17 +55,22 @@ findOldest (TimeoutTable keys times) | Map.null keys = Nothing
 
 
 {-| Lookup a value by key. -}
-find :: (Ord k) => k -> TimeoutTable k a -> Maybe (TimeRep, a)
+find :: (Ord tm, Ord k) => k -> TimeoutTable tm k a -> Maybe (tm, a)
 find k tab = Map.lookup k $ _keySet tab
 
 
 {-| Is the given key a member of the table? -}
-member :: (Ord k) => k -> TimeoutTable k a -> Bool
+member :: (Ord tm, Ord k) => k -> TimeoutTable tm k a -> Bool
 member k tab = Map.member k $ _keySet tab
 
 
 {-| Add a new key-value-timeout mapping to the table. -}
-insert :: (Ord k) => TimeRep -> k -> a -> TimeoutTable k a -> TimeoutTable k a
+insert :: (Ord tm, Ord k) =>
+          tm                    -- ^ timeout for this mapping
+       -> k                     -- ^ key
+       -> a                     -- ^ value
+       -> TimeoutTable tm k a   -- ^ table
+       -> TimeoutTable tm k a
 insert !tm !k !v !tab = TimeoutTable ks' ts'
   where
      !tab'       = delete k tab
@@ -76,11 +78,12 @@ insert !tm !k !v !tab = TimeoutTable ks' ts'
      !ts         = _timeSet tab'
 
      !ks'        = Map.insert k (tm,v) ks
-     !ts'        = Map.insertWith' ((:) . head) tm [k] ts
+     !ts'        = Map.insertWith' consHead tm [k] ts
 
+     
 
 {-| Delete a key-value mapping from the table. -}
-delete :: (Ord k) => k -> TimeoutTable k a -> TimeoutTable k a
+delete :: (Ord tm, Ord k) => k -> TimeoutTable tm k a -> TimeoutTable tm k a
 delete !k !tab = maybe tab killIt mbTm
   where
     !ks            = _keySet tab
@@ -95,7 +98,11 @@ delete !k !tab = maybe tab killIt mbTm
 
 
 {-| Update the timeout value for a key in the table. -}
-update :: (Ord k) => k -> TimeRep -> TimeoutTable k a -> TimeoutTable k a
+update :: (Ord tm, Ord k) =>
+          k                     -- ^ key to update
+       -> tm                    -- ^ new timeout value
+       -> TimeoutTable tm k a   -- ^ table
+       -> TimeoutTable tm k a
 update !k !tm !tab = maybe tab updateIt mbTm
   where
     !ks   = _keySet tab
@@ -106,4 +113,10 @@ update !k !tm !tab = maybe tab updateIt mbTm
       where
         !ks'  = Map.insert k (tm,v) ks
         !ts'  = removeFromTimeSet oldTm k ts
-        !ts'' = Map.insertWith' ((:) . head) tm [k] ts'
+        !ts'' = Map.insertWith' consHead tm [k] ts'
+
+
+consHead :: [a] -> [a] -> [a]
+consHead !xs !ys = x:ys
+  where
+    !x = head xs

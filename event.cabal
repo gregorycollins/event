@@ -97,7 +97,7 @@ Executable test
     MagicHash,
     UnboxedTuples
 
-  ghc-options: -Wall -funbox-strict-fields
+  ghc-options: -Wall -funbox-strict-fields -fhpc
   if impl(ghc >= 6.8)
     ghc-options: -fwarn-tabs
 
