@@ -11,6 +11,9 @@ data Event = Read   -- ^ The file descriptor is ready to be read
 data Timeout = Timeout CInt
              | Forever
 
+-- | Indicates whether poll returned because of activity or timeout
+data Result = Activity | TimedOut
+
 -- | Event notification backend.
 class Backend a where
     -- | Create a new backend.
@@ -20,9 +23,8 @@ class Backend a where
     -- once per file descriptor with new events.
     poll :: a                          -- ^ backend state 
          -> Timeout                    -- ^ timeout in milliseconds
-         -> IO ()                      -- ^ timeout callback
          -> (Fd -> [Event] -> IO ())   -- ^ I/O callback
-         -> IO ()
+         -> IO Result
 
     -- | Register interest in the given events on the given file
     -- descriptor.
@@ -30,3 +32,9 @@ class Backend a where
         -> Fd       -- ^ file descriptor
         -> [Event]  -- ^ events to watch for
         -> IO ()
+
+    -- | This should cause the underlying polling mechanism to unblock. An
+    -- | example of how to do this is provided by the GHC runtime system: when
+    -- | you create the Backend, create a pipe and register interest in the
+    -- | read end.
+    wakeup :: a -> IO ()

@@ -129,9 +129,10 @@ data EPoll = EPoll
     }
 
 instance E.Backend EPoll where
-    new  = new
-    set  = set
-    poll = poll
+    new    = new
+    set    = set
+    poll   = poll
+    wakeup = wakeup
 
 new :: IO EPoll
 new = liftM2 EPoll epollCreate (A.new 64)
@@ -145,10 +146,9 @@ set ep fd events =
 
 poll :: EPoll                        -- ^ state
      -> Timeout                      -- ^ timeout in milliseconds
-     -> IO ()                        -- ^ timeout callback
      -> (Fd -> [E.Event] -> IO ()) -- ^ I/O callback
-     -> IO ()
-poll ep timeout timeoutCallback f = do
+     -> IO E.Result
+poll ep timeout f = do
     let epfd   = epollEpfd   ep
     let events = epollEvents ep
 
@@ -156,12 +156,14 @@ poll ep timeout timeoutCallback f = do
          epollWait epfd es cap $ fromTimeout timeout
 
     if (Errno $ toEnum n) == eINTR then
-        timeoutCallback
+        return E.TimedOut
       else do
         cap <- A.capacity events
         when (n == cap) $ A.ensureCapacity events (2 * cap)
 
         A.mapM_ events $ \e -> f (eventFd e) []
+
+        return E.Activity
 
 -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- --
 

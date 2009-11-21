@@ -1,11 +1,5 @@
 {-# LANGUAGE BangPatterns #-}
 
-{-|
-
-FIXME: add description
-
--}
-
 module System.Event.TimeoutTable
   ( TimeoutTable
   , empty
@@ -80,7 +74,6 @@ insert !tm !k !v !tab = TimeoutTable ks' ts'
      !ks'        = Map.insert k (tm,v) ks
      !ts'        = Map.insertWith' consHead tm [k] ts
 
-     
 
 {-| Delete a key-value mapping from the table. -}
 delete :: (Ord tm, Ord k) => k -> TimeoutTable tm k a -> TimeoutTable tm k a
@@ -94,7 +87,6 @@ delete !k !tab = maybe tab killIt mbTm
       where
         !ks'  = Map.delete k ks
         !ts'  = removeFromTimeSet tm k ts
-
 
 
 {-| Update the timeout value for a key in the table. -}
@@ -116,6 +108,12 @@ update !k !tm !tab = maybe tab updateIt mbTm
         !ts'' = Map.insertWith' consHead tm [k] ts'
 
 
+------------------------------------------------------------------------------
+-- private functions follow
+------------------------------------------------------------------------------
+
+{-| Take the head of the first list and cons it to the second. Used w/
+    `Map.insertWith'` to insert values into the time set. -}
 consHead :: [a] -> [a] -> [a]
 consHead !xs !ys = x:ys
   where

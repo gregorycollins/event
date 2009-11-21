@@ -156,6 +156,7 @@ instance E.Backend EventQueue where
     new          = new
     poll         = poll
     set q fd evs = set q fd (combineFilters $ map fromEvent evs) flagAdd
+    wakeup       = undefined
 
 new :: IO EventQueue
 new = do
@@ -170,10 +171,9 @@ set q fd fltr flg =
 
 poll :: EventQueue
      -> Timeout
-     -> IO ()
      -> (Fd -> [E.Event] -> IO ())
-     -> IO ()
-poll q tout timeoutCallback f = do
+     -> IO E.Result
+poll q tout f = do
     changesLen <- A.length (changes q)
     len <- A.length (events q)
     when (changesLen > len) $ A.ensureCapacity (events q) (2 * changesLen)
@@ -183,9 +183,9 @@ poll q tout timeoutCallback f = do
                kevent (kq q) changesPtr chLen eventsPtr evLen tsPtr
 
     if res <= 0 then
-        timeoutCallback
+        return E.TimedOut
       else do
-        putStrLn "events!"
+        putStrLn "kqueue: events!"
 
         eventsLen <- A.length (events q)
         when (res == eventsLen) $ do
@@ -194,6 +194,8 @@ poll q tout timeoutCallback f = do
         A.mapM_ (events q) $ \e -> do
             let fd = fromIntegral (ident e)
             f fd []
+
+        return E.Activity
 
 fromEvent :: E.Event -> Filter
 fromEvent E.Read  = filterRead
